@@ -63,7 +63,7 @@ nav .fab{flex:none;width:64px;height:64px;margin-top:-30px;border-radius:50%;bac
 <button data-t="hist" onclick="go('hist')"><span>🧾</span>Riwayat</button>
 <button onclick="refresh()"><span>🔄</span>Segarkan</button></nav>
 <script>
-const API='GANTI_DENGAN_URL_WEB_APP';   // <-- tempel URL web app Apps Script di sini
+const API='https://script.google.com/macros/s/AKfycbzM69sk3ht2knfP8nmefuI-fyQHOFDkLflqktFotYP0vL7673u1KAh9EBvsX5EDSlob/exec';   // <-- tempel URL web app Apps Script di sini
 const MODELS=['QRIS','Transfer','Tunai','Kartu Kredit'];
 let PIN='',D={tx:[],saldo:[]},tab='home',per='bulan',cs='',ce='',q='',fk='',ft='',E=null,T='keluar',M='';
 const $=s=>document.querySelector(s),sum=a=>a.reduce((s,x)=>s+x.total,0);
