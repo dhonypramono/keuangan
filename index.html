@@ -74,8 +74,13 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const num=s=>+String(s).replace(/\D/g,'');
 function toast(m,e){const t=$('#toast');t.textContent=m;t.className='s'+(e?' e':'');clearTimeout(t.h);t.h=setTimeout(()=>t.className='',2800)}
 async function call(a,p={}){
-  let j;try{const c=new AbortController(),t=setTimeout(()=>c.abort(),90000);j=await(await fetch(API,{method:'POST',body:JSON.stringify({pin:PIN,a,...p}),signal:c.signal})).json();clearTimeout(t)}
-  catch{throw new Error('Tidak bisa terhubung. Periksa internet.')}
+  let j,t='';const c=new AbortController(),tm=setTimeout(()=>c.abort(),150000);
+  try{let r;
+    try{r=await fetch(API,{method:'POST',body:JSON.stringify({pin:PIN,a,...p}),signal:c.signal})}
+    catch(e){throw new Error(e.name=='AbortError'?'Server terlalu lama menjawab (lebih dari 150 detik). Coba lagi.':'Tidak bisa terhubung ke server. Periksa internet dan URL di config.js.')}
+    t=await r.text();
+    try{j=JSON.parse(t)}catch{throw new Error('Server membalas halaman error, bukan data: '+t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,150))}
+  }finally{clearTimeout(tm)}
   if(j.error)throw new Error(j.error);return j}
 async function load(){D=await call('list')}
 async function login(){PIN=$('#pin').value;const b=$('#go');b.disabled=1;b.textContent='Memeriksa…';
@@ -174,7 +179,7 @@ async function del(){if(!confirm('Hapus transaksi "'+E.nama+'"? Baris di spreads
   try{await call('del',{t:E.t,id:E.id});$('#ov').remove();toast('Terhapus ✓');await load();render()}catch(e){toast('Gagal menghapus: '+e.message,1)}}
 function shrink(f){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>{const s=Math.min(1,1400/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.8).split(',')[1])};i.onerror=()=>no(new Error('Gambar tidak bisa dibaca'));i.src=URL.createObjectURL(f)})}
 async function scan(e){const f=e.target.files[0];if(!f)return;const b=$('#sc'),ss=$('#ss');b.style.opacity=.6;$('#fi').disabled=1;b.textContent='Membaca nota…';
-  ss.textContent='⏳ Mengirim ke Gemini… bisa sampai 1 menit bila Gemini sedang sibuk.';
+  let n=0;const iv=window.__iv=setInterval(()=>ss.textContent='⏳ Membaca nota… '+(++n)+' dtk (bisa sampai 2 menit bila Gemini sibuk)',1000);ss.style.color='';ss.textContent='⏳ Membaca nota…';
   try{const r=await call('scan',{img:await shrink(f)});
     if(r.nama)$('#nama').value=r.nama;
     if(r.total>0){$('#hrg').value=Math.round(r.total).toLocaleString('id-ID');$('#jml').value=1;$('#jml').dispatchEvent(new Event('input'))}
@@ -185,6 +190,6 @@ async function scan(e){const f=e.target.files[0];if(!f)return;const b=$('#sc'),s
     if(r.total>0){ss.style.color='#10b981';ss.textContent='✓ Nota terbaca. Periksa isiannya lalu ketuk Simpan.';toast('Nota terbaca. Periksa lalu simpan.')}
     else{ss.style.color='#ef4444';ss.textContent='⚠ Total tidak terbaca. Isi nominal manual. Balasan Gemini: '+(r.raw||'(kosong)');toast('Total tidak terbaca. Isi nominal manual.',1)}}
   catch(x){ss.style.color='#ef4444';ss.textContent='⚠ Gagal membaca nota: '+x.message;toast('Gagal membaca nota',1)}
-  b.style.opacity=1;$('#fi').disabled=0;b.textContent='📷 Scan nota';$('#fi').value=''}
+  clearInterval(window.__iv);b.style.opacity=1;$('#fi').disabled=0;b.textContent='📷 Scan nota';$('#fi').value=''}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>
