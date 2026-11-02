@@ -145,7 +145,7 @@ async function transfer(){
 function openForm(t,id){E=id?D.tx.find(x=>x.id==id&&x.t==t):null;T=E?E.t:'keluar';
   const x=E||{nama:'',jml:1,hrg:'',kat:'',tgl:iso(new Date()),rek:localStorage.rek||'',model:localStorage.model||''};M=x.model;
   const ks=[...new Set(D.tx.filter(y=>y.t==T).map(y=>y.kat).filter(k=>k&&k!='Transfer'))],rs=[...new Set(D.tx.map(y=>y.rek).filter(Boolean))];
-  const o=document.createElement('div');o.className='ov';o.id='ov';o.onclick=e=>e.target==o&&o.remove();
+  const o=document.createElement('div');o.className='ov';o.id='ov';o.onclick=e=>{if(e.target==o)o.remove()};
   o.innerHTML=`<div class=sheet><h3 style="margin-top:0">${E?'Ubah':'Tambah'} transaksi</h3>${E?'':'<div style="position:relative;margin-bottom:12px"><div class=btn id=sc style="margin:0;text-align:center">📷 Scan nota</div><input type=file id=fi accept="image/*" onchange="scan(event)" style="position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0;border:0"></div>'}
   <div class=seg id=seg><button data-v=masuk class="${T=='masuk'?'on':''}" ${E?'disabled':''}>Pemasukan</button><button data-v=keluar class="${T=='keluar'?'on':''}" ${E?'disabled':''}>Pengeluaran</button></div>
   <label>Harga satuan / nominal (Rp)</label><input id=hrg inputmode=numeric placeholder="0" value="${x.hrg?x.hrg.toLocaleString('id-ID'):''}">
