@@ -62,8 +62,8 @@ nav .fab{flex:none;width:64px;height:64px;margin-top:-30px;border-radius:50%;bac
 <button class="fab" onclick="openForm()" aria-label="Tambah transaksi">+</button>
 <button data-t="hist" onclick="go('hist')"><span>🧾</span>Riwayat</button>
 <button onclick="refresh()"><span>🔄</span>Segarkan</button></nav>
+<script src="config.js"></script>
 <script>
-const API='https://script.google.com/macros/s/AKfycbzM69sk3ht2knfP8nmefuI-fyQHOFDkLflqktFotYP0vL7673u1KAh9EBvsX5EDSlob/exec';   // <-- tempel URL web app Apps Script di sini
 const MODELS=['QRIS','Transfer','Tunai','Kartu Kredit'];
 let PIN='',D={tx:[],saldo:[]},tab='home',per='bulan',cs='',ce='',q='',fk='',ft='',E=null,T='keluar',M='';
 const $=s=>document.querySelector(s),sum=a=>a.reduce((s,x)=>s+x.total,0);
@@ -74,7 +74,7 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const num=s=>+String(s).replace(/\D/g,'');
 function toast(m,e){const t=$('#toast');t.textContent=m;t.className='s'+(e?' e':'');clearTimeout(t.h);t.h=setTimeout(()=>t.className='',2800)}
 async function call(a,p={}){
-  let j;try{j=await(await fetch(API,{method:'POST',body:JSON.stringify({pin:PIN,a,...p})})).json()}
+  let j;try{const c=new AbortController(),t=setTimeout(()=>c.abort(),40000);j=await(await fetch(API,{method:'POST',body:JSON.stringify({pin:PIN,a,...p}),signal:c.signal})).json();clearTimeout(t)}
   catch{throw new Error('Tidak bisa terhubung. Periksa internet.')}
   if(j.error)throw new Error(j.error);return j}
 async function load(){D=await call('list')}
@@ -91,12 +91,12 @@ function range(){const n=new Date(),t=iso(n);
   if(per=='bulan')return[iso(new Date(n.getFullYear(),n.getMonth(),1)),t];
   return[cs||'0000',ce||'9999']}
 function prevR([a,b]){if(a=='0000'||b=='9999')return null;const A=new Date(a),B=new Date(b),L=Math.round((B-A)/864e5)+1,pe=new Date(A-864e5);return[iso(new Date(pe-(L-1)*864e5)),iso(pe)]}
-const inR=(a,r)=>D.tx.filter(x=>{const g=x.tgl||'0000';return g>=r[0]&&g<=r[1]&&x.t==a});
+const inR=(a,r)=>D.tx.filter(x=>{const g=x.tgl||'0000';return g>=r[0]&&g<=r[1]&&x.t==a&&x.kat!='Transfer'});
 const grp=(a,k)=>{const m={};a.forEach(x=>{const n=x[k]||'(tanpa '+k+')';m[n]=(m[n]||0)+x.total});return Object.entries(m).sort((a,b)=>b[1]-a[1])};
 const hb=(r,c='')=>r.map(([k,v])=>`<div class=hb><div class=r><span>${esc(k)}</span><b>${rp(v)}</b></div><i class="${c}" style="width:${Math.max(2,v/r[0][1]*100)}%"></i></div>`).join('');
 const empty=t=>`<div class=em><div style="font-size:38px">🗂️</div><p>${t}</p></div>`;
 const bar=()=>`<select onchange="per=this.value;render()" aria-label="Periode">${[['hari','Hari ini'],['minggu','Minggu ini'],['bulan','Bulan ini'],['custom','Custom']].map(([v,l])=>`<option value=${v} ${per==v?'selected':''}>Periode: ${l}</option>`).join('')}</select>`+(per=='custom'?`<div class="row mt"><input type=date value="${cs}" onchange="cs=this.value;render()"><input type=date value="${ce}" onchange="ce=this.value;render()"></div>`:'');
-const item=x=>`<div class="card tx" ${x.id?`onclick="openForm('${x.t}','${x.id}')"`:''}><div class="ic ${x.t}">${x.t=='masuk'?'↓':'↑'}</div><div class=f><b>${esc(x.nama)}</b><small>${esc(x.kat)} · ${x.tgl?fd(x.tgl):'-'} · ${esc(x.rek)}</small></div><b class="${x.t}">${x.t=='masuk'?'+':'-'}${rp(x.total)}</b></div>`;
+const item=x=>{const tf=x.kat=='Transfer';return `<div class="card tx" ${x.id?`onclick="${tf?`delTf('${x.id}')`:`openForm('${x.t}','${x.id}')`}"`:''}><div class="ic ${tf?'':x.t}" ${tf?'style="background:#e5e7fb"':''}>${tf?'⇄':x.t=='masuk'?'↓':'↑'}</div><div class=f><b>${esc(x.nama)}</b><small>${esc(x.kat)} · ${x.tgl?fd(x.tgl):'-'} · ${esc(x.rek)}</small></div><b class="${tf?'':x.t}">${tf?'':x.t=='masuk'?'+':'-'}${rp(x.total)}</b></div>`};
 function render(){
   document.querySelectorAll('nav [data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t==tab));
   const R=range(),I=inR('masuk',R),O=inR('keluar',R),ti=sum(I),to=sum(O);let h='';
@@ -109,8 +109,8 @@ function render(){
       days=Math.max(1,Math.round((new Date(end)-new Date(st))/864e5)+1),P=prevR(R),pv=P?sum(inR('keluar',P)):0;
       h+=`<div class=card>🔥 Terbesar: <b>${esc(top[0])}</b> (${rp(top[1])})<br>📅 Rata-rata harian: <b>${rp(to/days)}</b>`+
       (pv?`<br>${to<=pv?'📉 Turun':'📈 Naik'} <b>${Math.abs(Math.round((to-pv)/pv*100))}%</b> dari periode sebelumnya (${rp(pv)})`:'')+`</div>`}
-    h+=`<h3>Saldo rekening <small onclick="addSaldo()" style="float:right;color:#6366f1;cursor:pointer">+ Tambah</small></h3>`+
-      (D.saldo.length?D.saldo.map(s=>`<div class="card row" onclick="addSaldo('${esc(s.rek)}')" style="cursor:pointer"><span>${esc(s.rek)}</span><b style="text-align:right">${rp(s.saldo)}</b></div>`).join(''):`<div class=card><small>Belum ada. Ketuk “+ Tambah” untuk mencatat saldo kartu kredit atau rekening.</small></div>`);
+    h+=`<h3>Saldo rekening <span style="float:right;font-size:14px;color:#6366f1;cursor:pointer"><small onclick="transfer()" style="color:#6366f1">⇄ Transfer / bayar tagihan</small> &nbsp; <small onclick="addSaldo()" style="color:#6366f1">+ Tambah</small></span></h3>`+
+      (D.saldo.length?D.saldo.map(s=>{const k=/kredit/i.test(s.rek);return `<div class="card row" onclick="addSaldo('${esc(s.rek)}')" style="cursor:pointer"><span>${esc(s.rek)}<small style="display:block">${k?'Tagihan':'Saldo'}${s.mulai?' · sejak '+fd(s.mulai):' · ketuk untuk atur tanggal mulai'}</small></span><b style="text-align:right">${rp(bal(s))}</b></div>`}).join(''):`<div class=card><small>Belum ada. Ketuk “+ Tambah” untuk mencatat saldo kartu kredit atau rekening.</small></div>`);
     const rec=[...D.tx].sort((a,b)=>(b.tgl||'').localeCompare(a.tgl||'')).slice(0,5);
     h+='<h3>Transaksi terbaru</h3>'+(rec.length?rec.map(item).join(''):empty('Belum ada transaksi. Ketuk + untuk mulai mencatat.'))}
   if(tab=='chart'){h=bar()+'<h3>Pengeluaran per kategori</h3><div class=card>'+(O.length?hb(grp(O,'kat')):empty('Belum ada data'))+'</div><h3>Tren harian (pengeluaran)</h3><div class=card>';
@@ -123,12 +123,28 @@ function render(){
     <div class="row mt"><select onchange="fk=this.value;render()"><option value="">Semua kategori</option>${ks.map(k=>`<option ${k==fk?'selected':''}>${esc(k)}</option>`).join('')}</select><input type=date value="${ft}" onchange="ft=this.value;render()"></div><div class=mt>`+
     (L.length?L.slice(0,150).map(item).join(''):empty('Tidak ada transaksi yang cocok.'))+'</div>'}
   $('#main').innerHTML=h;const s=$('#sq');if(s&&document.activeElement==document.body&&q){s.focus();s.setSelectionRange(q.length,q.length)}}
-async function addSaldo(n){const rek=n||prompt('Nama rekening / kartu (mis. Kartu Kredit BCA):');if(!rek)return;
-  const v=prompt('Saldo untuk '+rek+' (angka, Rp):');if(v===null)return;const s=num(v);
-  try{await call('saldo',{rek,saldo:s});toast('Saldo tersimpan ✓');await load();render()}catch(e){toast('Gagal: '+e.message,1)}}
+const bal=s=>{const k=/kredit/i.test(s.rek),m=s.mulai||'9999',key=s.rek.trim().toLowerCase();let v=s.saldo;
+  D.tx.forEach(x=>{if((x.rek||'').trim().toLowerCase()==key&&(x.tgl||'')>=m){const d=x.t=='masuk'?x.total:-x.total;v+=k?-d:d}});return v};
+async function addSaldo(n){const rek=n||prompt('Nama rekening/kartu, samakan dengan kolom "tujuan rekening" (mis. BCA atau Kartu Kredit BCA):');if(!rek)return;
+  const v=prompt('Saldo awal '+rek+' (Rp). Untuk kartu kredit isi tagihan awal:');if(v===null)return;
+  const t=prompt('Berlaku sejak tanggal (dd/mm/yyyy). Transaksi mulai tanggal ini ikut menghitung saldo:',fd(iso(new Date())));if(t===null)return;
+  const m=t.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return toast('Format tanggal harus dd/mm/yyyy',1);
+  try{await call('saldo',{rek:rek.trim(),saldo:num(v),mulai:m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')});toast('Saldo tersimpan ✓');await load();render()}catch(e){toast('Gagal: '+e.message,1)}}
+async function delTf(id){if(!confirm('Hapus transfer ini? Sisi keluar dan sisi masuknya ikut terhapus.'))return;
+  try{await call('del',{t:'keluar',id});toast('Terhapus ✓');await load();render()}catch(e){toast('Gagal menghapus: '+e.message,1)}}
+async function transfer(){
+  const ks=D.saldo.map(s=>s.rek).join(', ');
+  const dari=prompt('Dari rekening (sumber dana)'+(ks?'. Daftar: '+ks:'')+':',localStorage.tfd||'');if(!dari)return;
+  const ke=prompt('Ke rekening (tujuan). Untuk bayar tagihan, isi nama kartu kredit:',(D.saldo.find(s=>/kredit/i.test(s.rek))||{}).rek||'');if(!ke)return;
+  if(dari.trim().toLowerCase()==ke.trim().toLowerCase())return toast('Rekening asal dan tujuan harus berbeda',1);
+  const v=prompt('Nominal (Rp):');if(v===null)return;if(!num(v))return toast('Nominal harus lebih dari 0',1);
+  const t=prompt('Tanggal (dd/mm/yyyy):',fd(iso(new Date())));if(t===null)return;
+  const m=t.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)return toast('Format tanggal harus dd/mm/yyyy',1);
+  try{await call('transfer',{dari:dari.trim(),ke:ke.trim(),hrg:num(v),tgl:m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')});
+    localStorage.tfd=dari.trim();toast('Transfer tersimpan ✓');await load();render()}catch(e){toast('Gagal: '+e.message,1)}}
 function openForm(t,id){E=id?D.tx.find(x=>x.id==id&&x.t==t):null;T=E?E.t:'keluar';
   const x=E||{nama:'',jml:1,hrg:'',kat:'',tgl:iso(new Date()),rek:localStorage.rek||'',model:localStorage.model||''};M=x.model;
-  const ks=[...new Set(D.tx.filter(y=>y.t==T).map(y=>y.kat).filter(Boolean))],rs=[...new Set(D.tx.map(y=>y.rek).filter(Boolean))];
+  const ks=[...new Set(D.tx.filter(y=>y.t==T).map(y=>y.kat).filter(k=>k&&k!='Transfer'))],rs=[...new Set(D.tx.map(y=>y.rek).filter(Boolean))];
   const o=document.createElement('div');o.className='ov';o.id='ov';o.onclick=e=>e.target==o&&o.remove();
   o.innerHTML=`<div class=sheet><h3 style="margin-top:0">${E?'Ubah':'Tambah'} transaksi</h3>${E?'':'<button class=btn id=sc style="margin:0 0 12px">📷 Scan nota</button><input type=file id=fi accept="image/*" hidden>'}
   <div class=seg id=seg><button data-v=masuk class="${T=='masuk'?'on':''}" ${E?'disabled':''}>Pemasukan</button><button data-v=keluar class="${T=='keluar'?'on':''}" ${E?'disabled':''}>Pengeluaran</button></div>
