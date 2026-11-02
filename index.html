@@ -74,7 +74,7 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const num=s=>+String(s).replace(/\D/g,'');
 function toast(m,e){const t=$('#toast');t.textContent=m;t.className='s'+(e?' e':'');clearTimeout(t.h);t.h=setTimeout(()=>t.className='',2800)}
 async function call(a,p={}){
-  let j;try{const c=new AbortController(),t=setTimeout(()=>c.abort(),40000);j=await(await fetch(API,{method:'POST',body:JSON.stringify({pin:PIN,a,...p}),signal:c.signal})).json();clearTimeout(t)}
+  let j;try{const c=new AbortController(),t=setTimeout(()=>c.abort(),90000);j=await(await fetch(API,{method:'POST',body:JSON.stringify({pin:PIN,a,...p}),signal:c.signal})).json();clearTimeout(t)}
   catch{throw new Error('Tidak bisa terhubung. Periksa internet.')}
   if(j.error)throw new Error(j.error);return j}
 async function load(){D=await call('list')}
