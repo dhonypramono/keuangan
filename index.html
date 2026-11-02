@@ -74,10 +74,10 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const num=s=>+String(s).replace(/\D/g,'');
 function toast(m,e){const t=$('#toast');t.textContent=m;t.className='s'+(e?' e':'');clearTimeout(t.h);t.h=setTimeout(()=>t.className='',2800)}
 async function call(a,p={}){
-  let j,t='';const c=new AbortController(),tm=setTimeout(()=>c.abort(),150000);
+  let j,t='';const t0=Date.now(),c=new AbortController(),tm=setTimeout(()=>c.abort(),150000);
   try{let r;
     try{r=await fetch(API,{method:'POST',body:JSON.stringify({pin:PIN,a,...p}),signal:c.signal})}
-    catch(e){throw new Error(e.name=='AbortError'?'Server terlalu lama menjawab (lebih dari 150 detik). Coba lagi.':'Tidak bisa terhubung ke server. Periksa internet dan URL di config.js.')}
+    catch(e){const dt=Math.round((Date.now()-t0)/1000);throw new Error(e.name=='AbortError'?'Server terlalu lama menjawab (lebih dari 150 detik). Coba lagi.':'Tidak bisa terhubung ke server (putus setelah '+dt+' dtk: '+e.message+'). '+(dt>20?'Kemungkinan proses di server terlalu lama; cek halaman Eksekusi di Apps Script lalu coba lagi.':'Periksa internet dan URL di config.js.'))}
     t=await r.text();
     try{j=JSON.parse(t)}catch{throw new Error('Server membalas halaman error, bukan data: '+t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,150))}
   }finally{clearTimeout(tm)}
@@ -177,9 +177,40 @@ async function save(){
   catch(e){toast('Gagal menyimpan: '+e.message,1);b.disabled=0;b.textContent='Simpan'}}
 async function del(){if(!confirm('Hapus transaksi "'+E.nama+'"? Baris di spreadsheet ikut terhapus.'))return;
   try{await call('del',{t:E.t,id:E.id});$('#ov').remove();toast('Terhapus ✓');await load();render()}catch(e){toast('Gagal menghapus: '+e.message,1)}}
-function shrink(f){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>{const s=Math.min(1,1400/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.8).split(',')[1])};i.onerror=()=>no(new Error('Gambar tidak bisa dibaca'));i.src=URL.createObjectURL(f)})}
+let SC=null,SP={};
+function openSplit(){
+  const r=SC;if(!r||!r.items)return;SP={tgl:$('#tgl').value,rek:$('#rek').value.trim(),model:M};
+  let it=r.items.map(x=>({nama:x.nama+(x.jml>1?' x'+x.jml:''),v:Math.round(x.total),kat:x.kat||$('#kat').value.trim()}));
+  const sum=it.reduce((s,x)=>s+x.v,0),T=r.total>0?Math.round(r.total):sum;SP.T=T;let note='';
+  if(T!=sum&&sum>0){let a=it.map(x=>Math.round(x.v*T/sum));a[a.indexOf(Math.max(...a))]+=T-a.reduce((s,x)=>s+x,0);
+    note='Selisih '+rp(T-sum)+' (pajak/diskon/biaya lain) sudah dibagi proporsional ke tiap barang.';it=it.map((x,i)=>({...x,v:a[i]}))}
+  const ks=[...new Set(D.tx.filter(y=>y.t=='keluar').map(y=>y.kat).filter(k=>k&&k!='Transfer'))];
+  const o=document.createElement('div');o.className='ov';o.id='ov2';o.onclick=e=>{if(e.target==o)o.remove()};
+  o.innerHTML=`<div class=sheet><h3 style="margin-top:0">Pecah per barang</h3><small>${note||'Periksa nama, nominal, dan kategori tiap barang.'}</small>
+  <datalist id=dk2>${ks.map(k=>`<option value="${esc(k)}">`).join('')}</datalist>
+  ${it.map(x=>`<div class="card sr" style="padding:10px;margin:8px 0"><input class=sn value="${esc(x.nama)}"><div class=row style="margin-top:6px"><input class=sv inputmode=numeric value="${x.v.toLocaleString('id-ID')}"><input class=sk list=dk2 placeholder="kategori" value="${esc(x.kat)}"><button type=button style="flex:none;width:44px;border:0;background:#fde0e0;border-radius:12px;color:#ef4444" onclick="this.closest('.sr').remove();chk()" aria-label="Hapus item">✕</button></div></div>`).join('')}
+  <div id=sch style="margin:10px 2px;font-weight:600"></div>
+  <button class=btn id=ssv>Simpan semua</button>
+  <button class=btn style="background:#fff;color:#6366f1;border:1px solid #d9dcf7;margin-top:8px" onclick="$('#ov2').remove()">Kembali</button></div>`;
+  document.body.appendChild(o);
+  o.querySelectorAll('.sv').forEach(i=>i.oninput=e=>{const n=num(e.target.value);e.target.value=n?n.toLocaleString('id-ID'):'';chk()});
+  $('#ssv').onclick=saveSplit;chk()}
+function chk(){const s=[...document.querySelectorAll('#ov2 .sv')].reduce((a,i)=>a+num(i.value),0),d=$('#sch');if(!d)return;
+  d.style.color=s==SP.T?'#10b981':'#ef4444';d.textContent=s==SP.T?'✓ Jumlah '+rp(s)+' = total nota':'⚠ Jumlah '+rp(s)+' · total nota '+rp(SP.T)+' (selisih '+rp(s-SP.T)+')'}
+async function saveSplit(){
+  const items=[...document.querySelectorAll('#ov2 .sr')].map(r=>({nama:r.querySelector('.sn').value.trim(),hrg:num(r.querySelector('.sv').value),kat:r.querySelector('.sk').value.trim()}));
+  if(!items.length)return toast('Tidak ada item untuk disimpan',1);
+  if(items.some(x=>!x.nama||!(x.hrg>0)||!x.kat))return toast('Setiap item harus punya nama, nominal, dan kategori',1);
+  if(!SP.tgl)return toast('Isi tanggal di form sebelum memecah',1);
+  const s=items.reduce((a,x)=>a+x.hrg,0);
+  if(s!=SP.T&&!confirm('Jumlah item '+rp(s)+' berbeda dari total nota '+rp(SP.T)+'. Tetap simpan?'))return;
+  const b=$('#ssv');b.disabled=1;b.textContent='Menyimpan…';
+  try{await call('addmany',{t:'keluar',items,tgl:SP.tgl,rek:SP.rek,model:SP.model});
+    localStorage.rek=SP.rek;localStorage.model=SP.model;$('#ov2').remove();$('#ov').remove();toast(items.length+' item tersimpan ✓');await load();render()}
+  catch(e){toast('Gagal menyimpan: '+e.message,1);b.disabled=0;b.textContent='Simpan semua'}}
+function shrink(f){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>{const s=Math.min(1,1600/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);ok(c.toDataURL('image/jpeg',.72).split(',')[1])};i.onerror=()=>no(new Error('Gambar tidak bisa dibaca'));i.src=URL.createObjectURL(f)})}
 async function scan(e){const f=e.target.files[0];if(!f)return;const b=$('#sc'),ss=$('#ss');b.style.opacity=.6;$('#fi').disabled=1;b.textContent='Membaca nota…';
-  let n=0;const iv=window.__iv=setInterval(()=>ss.textContent='⏳ Membaca nota… '+(++n)+' dtk (bisa sampai 2 menit bila Gemini sibuk)',1000);ss.style.color='';ss.textContent='⏳ Membaca nota…';
+  let n=0;const iv=window.__iv=setInterval(()=>ss.textContent='⏳ Membaca nota… '+(++n)+' dtk (bisa sampai 2 menit bila Gemini sibuk)',1000);SC=null;ss.style.color='';ss.textContent='⏳ Membaca nota…';
   try{const r=await call('scan',{img:await shrink(f)});
     if(r.nama)$('#nama').value=r.nama;
     if(r.total>0){$('#hrg').value=Math.round(r.total).toLocaleString('id-ID');$('#jml').value=1;$('#jml').dispatchEvent(new Event('input'))}
@@ -188,7 +219,8 @@ async function scan(e){const f=e.target.files[0];if(!f)return;const b=$('#sc'),s
     const m=MODELS.find(x=>x.toLowerCase()==String(r.model||'').toLowerCase());
     if(m){M=m;document.querySelectorAll('#ch button').forEach(x=>x.classList.toggle('on',x.dataset.v==m))}
     if(r.total>0){ss.style.color='#10b981';ss.textContent='✓ Nota terbaca. Periksa isiannya lalu ketuk Simpan.';toast('Nota terbaca. Periksa lalu simpan.')}
-    else{ss.style.color='#ef4444';ss.textContent='⚠ Total tidak terbaca. Isi nominal manual. Balasan Gemini: '+(r.raw||'(kosong)');toast('Total tidak terbaca. Isi nominal manual.',1)}}
+    else{ss.style.color='#ef4444';ss.textContent='⚠ Total tidak terbaca. Isi nominal manual. Balasan Gemini: '+(r.raw||'(kosong)');toast('Total tidak terbaca. Isi nominal manual.',1)}
+    SC=r;if((r.items||[]).length>1){const bt=document.createElement('button');bt.type='button';bt.className='btn';bt.style.cssText='margin:8px 0 0;padding:12px;background:#fff;color:#6366f1;border:1px solid #c9ccf5';bt.textContent='✂️ Pecah per barang ('+r.items.length+' item)';bt.onclick=openSplit;ss.appendChild(bt)}}
   catch(x){ss.style.color='#ef4444';ss.textContent='⚠ Gagal membaca nota: '+x.message;toast('Gagal membaca nota',1)}
   clearInterval(window.__iv);b.style.opacity=1;$('#fi').disabled=0;b.textContent='📷 Scan nota';$('#fi').value=''}
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
